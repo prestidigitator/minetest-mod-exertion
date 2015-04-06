@@ -1,5 +1,5 @@
 local MOD_NAME = minetest.get_current_modname() or "exertion";
-local MOD_PATH = minetest.get_modpath();
+local MOD_PATH = minetest.get_modpath(MOD_NAME);
 
 local exertion = { MOD_NAME = MOD_NAME, MOD_PATH = MOD_PATH };
 _G[MOD_NAME] = exertion;
@@ -22,6 +22,19 @@ exertion.PlayerState = PlayerState;
 PlayerState.load();
 local playerStates = {};
 
+--- Retrieves the PlayerState object for a given player.  Returns nil if player
+ -- is not logged in.
+ --
+ -- @param player
+ --    A player object or player name.
+ --
+function exertion.getPlayerState(player)
+   if type(player) == 'string' then
+      player = minetest.get_player_by_name(player);
+   end;
+   return playerStates[player];
+end;
+
 minetest.register_on_joinplayer(
    function(player)
       minetest.after(
@@ -31,6 +44,17 @@ minetest.register_on_joinplayer(
 minetest.register_on_leaveplayer(
    function(player)
       playerStates[player] = nil;
+   end);
+
+minetest.register_on_dieplayer(
+   function(player)
+      local ps = playerStates[player];
+      if not ps then return; end;
+      ps:setFed(0, true);
+      ps:setHydrated(0, true);
+      ps:setPoisoned(0, true);
+      ps:clearExertionStats();
+      ps:updateHud();
    end);
 
 minetest.register_on_shutdown(PlayerState.save);
@@ -88,8 +112,21 @@ minetest.register_on_item_eat(
          local ps = playerStates[player];
          if ps then
             if hpChange > 0 then
-               ps:addFood(hpChange);
+               local pp = math.max(0, settings.foodPoisoningProb);
+
+               if math.random() <= 1.0 - pp then
+                  local update = false;
+                  update = ps:addFood(hpChange, true) or update;
+                  update = ps:addWater(hpChange / 2, true) or update;
+                  if update then ps:updateHud(); end;
+               else
+                  minetest.chat_send_player(player:get_player_name(),
+                                            settings.foodPoisoningMessage);
+                  ps:addPoison(hpChange);
+               end;
             elseif hpChange < 0 then
+               minetest.chat_send_player(player:get_player_name(),
+                                         settings.foodPoisoningMessage);
                ps:addPoison(-hpChange);
             end;
          end;

@@ -40,12 +40,12 @@ local settingsEnv =
 
 if modSettingsFunc then
    setfenv(modSettingsFunc, settingsEnv);
-   modSettingsFunc();
+   modSettingsFunc(settings);
 end;
 
 if worldSettingsFunc then
    setfenv(worldSettingsFunc, settingsEnv);
-   worldSettingsFunc();
+   worldSettingsFunc(settings);
 end;
 
 return settings;
